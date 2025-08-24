@@ -1,7 +1,6 @@
 name: Process Video Queue
 
 on:
-  schedule:
   workflow_dispatch:        # manual trigger
 
 concurrency:
