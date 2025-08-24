@@ -9,6 +9,7 @@ import * as path from 'path';
 import axios from 'axios';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
+import { DateTime } from "luxon";
 
 // Ensure environment variables are loaded if you run this script locally
 import { config } from 'dotenv';
@@ -183,41 +184,35 @@ async function uploadVideo(uid: string, videoUrl: string, title: string, descrip
 
 
 async function processQueue() {
-    const now = new Date();
+    const now = DateTime.utc();
 
-    // Round current time down to nearest 15-minute slot
-    const currentHour = now.getUTCHours().toString().padStart(2, '0');
-    const roundedMinute = Math.floor(now.getUTCMinutes() / 15) * 15;
-    const currentSlot = `${currentHour}_${roundedMinute.toString().padStart(2, '0')}`;
+    // Define a 10-minute window (last 10 minutes → now + 5 minutes)
+    const windowStart = now.minus({ minutes: 10 });
+    const windowEnd = now.plus({ minutes: 5 });
 
-    // Find previous slot (-15 minutes)
-    const prevDate = new Date(now.getTime() - 15 * 60 * 1000);
-    const prevHour = prevDate.getUTCHours().toString().padStart(2, '0');
-    const prevMinute = Math.floor(prevDate.getUTCMinutes() / 15) * 15;
-    const prevSlot = `${prevHour}_${prevMinute.toString().padStart(2, '0')}`;
-
-    const slotsToCheck = [currentSlot, prevSlot];
-    console.log(`Checking schedules for slots: ${slotsToCheck.join(', ')}`);
+    console.log(`Checking schedules between ${windowStart.toISO()} and ${windowEnd.toISO()}`);
 
     const schedulesRef = db.collection('schedules');
-    const scheduleDocsSnapshot = await schedulesRef.get();
+    const scheduleDocsSnapshot = await schedulesRef
+        .where('scheduledAt', '>=', windowStart.toJSDate())
+        .where('scheduledAt', '<=', windowEnd.toJSDate())
+        .get();
 
-    const usersToProcess: string[] = [];
-
-    // Collect all users scheduled in any of the recent slots
-    scheduleDocsSnapshot.forEach(doc => {
-        if (slotsToCheck.includes(doc.id)) {
-            const slotUsers = doc.data()?.users || [];
-            usersToProcess.push(...slotUsers);
-        }
-    });
-
-    if (usersToProcess.length === 0) {
-        console.log("No users scheduled in the recent time window.");
+    if (scheduleDocsSnapshot.empty) {
+        console.log("No users scheduled in this 10-minute window.");
         return;
     }
 
-    console.log(`Found ${usersToProcess.length} users scheduled in the recent window.`);
+    // Collect all users to process
+    const usersToProcess: string[] = [];
+    scheduleDocsSnapshot.forEach(doc => {
+        const scheduledUsers = doc.data()?.users || [];
+        usersToProcess.push(...scheduledUsers);
+    });
+
+    console.log(`Found ${usersToProcess.length} users scheduled in this window.`);
+
+    if (usersToProcess.length === 0) return;
 
     const submissionsRef = db.collection('video_submissions');
     const videosToProcessSnapshot = await submissionsRef
@@ -237,7 +232,7 @@ async function processQueue() {
         const videoData = doc.data();
         const videoId = doc.id;
         const { uid, title, description, originalUrl } = videoData;
-        
+
         console.log(`Processing video: ${videoId} for user ${uid} - "${title}"`);
         const videoDocRef = db.collection('video_submissions').doc(videoId);
 
@@ -269,7 +264,6 @@ async function processQueue() {
 
     console.log("Finished video queue processing.");
 }
-
 
 processQueue().catch(error => {
     console.error("Fatal error in process-queue script:", error);
