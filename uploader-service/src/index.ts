@@ -184,29 +184,47 @@ async function uploadVideo(uid: string, videoUrl: string, title: string, descrip
 
 async function processQueue() {
     const now = new Date();
-    const currentMinutes = now.getUTCMinutes();
-    const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
-    const hour = now.getUTCHours().toString().padStart(2, '0');
-    const minute = roundedMinutes.toString().padStart(2, '0');
-    const timeDocId = `${hour}_${minute}`;
+    const currentHour = now.getUTCHours().toString().padStart(2, '0');
+    const currentMinute = now.getUTCMinutes();
 
-    console.log(`Starting video queue processing for time slot: ${timeDocId}`);
+    // Round to nearest :00 or :30
+    const roundedMinute = currentMinute < 30 ? '00' : '30';
 
-    const scheduleDocRef = db.collection('schedules').doc(timeDocId);
-    const scheduleDoc = await scheduleDocRef.get();
+    // Determine previous slot (30 minutes before)
+    let prevHour = currentHour;
+    let prevMinute = roundedMinute === '00' ? '30' : '00';
+    if (roundedMinute === '00') {
+        prevHour = (now.getUTCHours() - 1 + 24) % 24;
+        prevHour = prevHour.toString().padStart(2, '0');
+    }
 
-    if (!scheduleDoc.exists || !scheduleDoc.data()?.users || scheduleDoc.data()?.users.length === 0) {
-        console.log(`No users scheduled for time slot ${timeDocId}.`);
+    const slotsToCheck = [`${currentHour}_${roundedMinute}`, `${prevHour}_${prevMinute}`];
+    console.log(`Checking schedules for slots: ${slotsToCheck.join(', ')}`);
+
+    const schedulesRef = db.collection('schedules');
+    const scheduleDocsSnapshot = await schedulesRef.get();
+
+    const usersToProcess: string[] = [];
+
+    // Collect all users scheduled in any of the recent slots
+    scheduleDocsSnapshot.forEach(doc => {
+        if (slotsToCheck.includes(doc.id)) {
+            const slotUsers = doc.data()?.users || [];
+            usersToProcess.push(...slotUsers);
+        }
+    });
+
+    if (usersToProcess.length === 0) {
+        console.log("No users scheduled in the recent time window.");
         return;
     }
 
-    const userIds = scheduleDoc.data()?.users;
-    console.log(`Found ${userIds.length} users scheduled for this time slot.`);
+    console.log(`Found ${usersToProcess.length} users scheduled in the recent window.`);
 
     const submissionsRef = db.collection('video_submissions');
     const videosToProcessSnapshot = await submissionsRef
         .where('status', '==', 'queued')
-        .where('uid', 'in', userIds)
+        .where('uid', 'in', usersToProcess)
         .orderBy('submittedAt')
         .get();
 
@@ -227,11 +245,8 @@ async function processQueue() {
 
         try {
             await videoDocRef.update({ status: 'processing', updatedAt: FieldValue.serverTimestamp() });
-            console.log(`Updated status to 'processing' for video: ${videoId}`);
-
             const newVideoId = await uploadVideo(uid, originalUrl, title, description);
-            console.log(`Successfully processed video: ${videoId}. New YouTube ID: ${newVideoId}`);
-            
+
             const updateData: { [key: string]: any } = {
                 status: 'published',
                 publishedAt: FieldValue.serverTimestamp(),
@@ -243,8 +258,7 @@ async function processQueue() {
             }
 
             await videoDocRef.update(updateData);
-            console.log(`Updated status to 'published' for video: ${videoId}`);
-
+            console.log(`Successfully processed video: ${videoId}`);
         } catch (error: any) {
             console.error(`Error processing video ${videoId} for user ${uid}:`, error.message);
             await videoDocRef.update({ 
@@ -257,6 +271,7 @@ async function processQueue() {
 
     console.log("Finished video queue processing.");
 }
+
 
 processQueue().catch(error => {
     console.error("Fatal error in process-queue script:", error);
