@@ -184,85 +184,78 @@ async function uploadVideo(uid: string, videoUrl: string, title: string, descrip
 
 
 async function processQueue() {
-    const now = DateTime.utc();
+  const now = new Date();
+  const windowMinutes = 10;
 
-    // Define a 10-minute window (last 10 minutes → now + 5 minutes)
-    const windowStart = now.minus({ minutes: 10 });
-    const windowEnd = now.plus({ minutes: 5 });
+  // 10-minute window (backward + forward)
+  const start = new Date(now.getTime() - windowMinutes * 60 * 1000);
+  const end = new Date(now.getTime() + windowMinutes * 60 * 1000);
 
-    console.log(`Checking schedules between ${windowStart.toISO()} and ${windowEnd.toISO()}`);
+  console.log(`Checking schedules between ${start.toISOString()} and ${end.toISOString()}`);
 
-    const schedulesRef = db.collection('schedules');
-    const scheduleDocsSnapshot = await schedulesRef
-        .where('scheduledAt', '>=', windowStart.toJSDate())
-        .where('scheduledAt', '<=', windowEnd.toJSDate())
-        .get();
+  const slotKeys = getSlotKeysInWindow(start, end);
+  console.log("Checking slot keys:", slotKeys);
 
-    if (scheduleDocsSnapshot.empty) {
-        console.log("No users scheduled in this 10-minute window.");
-        return;
-    }
+  if (slotKeys.length === 0) {
+    console.log("No valid slot keys found in this window.");
+    return;
+  }
 
-    // Collect all users to process
-    const usersToProcess: string[] = [];
-    scheduleDocsSnapshot.forEach(doc => {
-        const scheduledUsers = doc.data()?.users || [];
-        usersToProcess.push(...scheduledUsers);
-    });
-
-    console.log(`Found ${usersToProcess.length} users scheduled in this window.`);
-
-    if (usersToProcess.length === 0) return;
-
-    const submissionsRef = db.collection('video_submissions');
-    const videosToProcessSnapshot = await submissionsRef
-        .where('status', '==', 'queued')
-        .where('uid', 'in', usersToProcess)
-        .orderBy('submittedAt')
-        .get();
-
-    if (videosToProcessSnapshot.empty) {
-        console.log("No queued videos found for the scheduled users.");
-        return;
-    }
-
-    console.log(`Found ${videosToProcessSnapshot.docs.length} videos to process.`);
-
-    for (const doc of videosToProcessSnapshot.docs) {
-        const videoData = doc.data();
-        const videoId = doc.id;
-        const { uid, title, description, originalUrl } = videoData;
-
-        console.log(`Processing video: ${videoId} for user ${uid} - "${title}"`);
-        const videoDocRef = db.collection('video_submissions').doc(videoId);
-
-        try {
-            await videoDocRef.update({ status: 'processing', updatedAt: FieldValue.serverTimestamp() });
-            const newVideoId = await uploadVideo(uid, originalUrl, title, description);
-
-            const updateData: { [key: string]: any } = {
-                status: 'published',
-                publishedAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-            };
-
-            if (newVideoId) {
-                updateData.newVideoId = newVideoId;
-            }
-
-            await videoDocRef.update(updateData);
-            console.log(`Successfully processed video: ${videoId}`);
-        } catch (error: any) {
-            console.error(`Error processing video ${videoId} for user ${uid}:`, error.message);
-            await videoDocRef.update({ 
-                status: 'error', 
-                errorMessage: error.message || 'An unknown error occurred', 
-                updatedAt: FieldValue.serverTimestamp() 
-            });
+  // Fetch all users scheduled in these slots
+  const scheduledUsers: any[] = [];
+  for (const slot of slotKeys) {
+    const slotDoc = await db.collection("schedules").doc(slot).get();
+    if (slotDoc.exists) {
+      const data = slotDoc.data();
+      if (data?.users) {
+        for (const [uid, videos] of Object.entries(data.users)) {
+          scheduledUsers.push({ uid, videos });
         }
+      }
     }
+  }
 
-    console.log("Finished video queue processing.");
+  if (scheduledUsers.length === 0) {
+    console.log("No users scheduled in this 10-minute window.");
+    return;
+  }
+
+  console.log(`Found ${scheduledUsers.length} scheduled users.`);
+
+  // Process each user's videos
+  for (const user of scheduledUsers) {
+    for (const video of user.videos as any[]) {
+      console.log(`Processing video ${video.id} for user ${user.uid}`);
+      try {
+        await uploadVideo(user.uid, video.url, video.title, video.description);
+      } catch (err) {
+        console.error(`Error processing video ${video.id} for user ${user.uid}:`, err);
+      }
+    }
+  }
+
+  console.log("Finished video queue processing.");
+}
+
+/**
+ * Returns slot keys (HH_MM) inside a given window.
+ * Only returns rounded slots (00,15,30,45).
+ */
+function getSlotKeysInWindow(start: Date, end: Date): string[] {
+  const slots: string[] = [];
+  const validMinutes = [0, 15, 30, 45];
+
+  let current = new Date(start);
+  while (current <= end) {
+    const minutes = current.getUTCMinutes();
+    if (validMinutes.includes(minutes)) {
+      const slot = `${String(current.getUTCHours()).padStart(2, "0")}_${String(minutes).padStart(2, "0")}`;
+      if (!slots.includes(slot)) slots.push(slot);
+    }
+    current.setUTCMinutes(current.getUTCMinutes() + 1);
+  }
+
+  return slots;
 }
 
 processQueue().catch(error => {
