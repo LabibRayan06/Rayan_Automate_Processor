@@ -184,21 +184,19 @@ async function uploadVideo(uid: string, videoUrl: string, title: string, descrip
 
 async function processQueue() {
     const now = new Date();
+
+    // Round current time down to nearest 15-minute slot
     const currentHour = now.getUTCHours().toString().padStart(2, '0');
-    const currentMinute = now.getUTCMinutes();
+    const roundedMinute = Math.floor(now.getUTCMinutes() / 15) * 15;
+    const currentSlot = `${currentHour}_${roundedMinute.toString().padStart(2, '0')}`;
 
-    // Round to nearest :00 or :30
-    const roundedMinute = currentMinute < 30 ? '00' : '30';
+    // Find previous slot (-15 minutes)
+    const prevDate = new Date(now.getTime() - 15 * 60 * 1000);
+    const prevHour = prevDate.getUTCHours().toString().padStart(2, '0');
+    const prevMinute = Math.floor(prevDate.getUTCMinutes() / 15) * 15;
+    const prevSlot = `${prevHour}_${prevMinute.toString().padStart(2, '0')}`;
 
-    // Determine previous slot (30 minutes before)
-    let prevHour = currentHour;
-    let prevMinute = roundedMinute === '00' ? '30' : '00';
-    if (roundedMinute === '00') {
-        prevHour = (now.getUTCHours() - 1 + 24) % 24;
-        prevHour = prevHour.toString().padStart(2, '0');
-    }
-
-    const slotsToCheck = [`${currentHour}_${roundedMinute}`, `${prevHour}_${prevMinute}`];
+    const slotsToCheck = [currentSlot, prevSlot];
     console.log(`Checking schedules for slots: ${slotsToCheck.join(', ')}`);
 
     const schedulesRef = db.collection('schedules');
