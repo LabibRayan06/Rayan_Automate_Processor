@@ -1,8 +1,14 @@
 name: Process Video Queue
 
 on:
+  push:      # remove this entirely, or explicitly ignore branches
+    branches-ignore:
+      - "*"
   schedule:
-  workflow_dispatch:        # manual trigger
+    - cron: "0 22 * * *"   # 22:00 UTC
+    - cron: "30 15 * * *"  # 15:30 UTC
+  workflow_dispatch:
+       # manual trigger
 
 concurrency:
   group: video-queue
