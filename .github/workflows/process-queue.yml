@@ -5,6 +5,7 @@ on:
       - "*"
   schedule:
     - cron: 0 22 * * *
+    - cron: 15 08 * * *
   workflow_dispatch: null
 concurrency:
   group: video-queue
