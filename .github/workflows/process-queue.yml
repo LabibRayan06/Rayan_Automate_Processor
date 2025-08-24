@@ -1,13 +1,12 @@
-
 name: Process Video Queue
 
 on:
   schedule:
-    # This section is now managed dynamically by the application.
-    # A default entry can be kept for validation or removed entirely.
-    # For example:
-    # - cron: '0 0 1 1 *' # A placeholder that runs once a year
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:        # manual trigger
+
+concurrency:
+  group: video-queue
+  cancel-in-progress: false
 
 jobs:
   process-queue:
@@ -20,34 +19,47 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: npm
           cache-dependency-path: 'uploader-service/package-lock.json'
 
+      # ✅ Cache yt-dlp binary so we don’t download every run
+      - name: Restore yt-dlp cache
+        id: cache-yt-dlp
+        uses: actions/cache@v4
+        with:
+          path: '/usr/local/bin/yt-dlp'
+          key: 'yt-dlp-${{ runner.os }}-2025-08'
+
       - name: Install yt-dlp
+        if: steps.cache-yt-dlp.outputs.cache-hit != 'true'
         run: |
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-      
-      - name: Create cookies.txt from secret
-        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
-        working-directory: ./uploader-service
-        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-        
+
+      # ✅ Cache ffmpeg-static (npm already caches binaries inside node_modules)
       - name: Install dependencies
         working-directory: ./uploader-service
-        run: npm install
+        run: npm ci --prefer-offline
+
+      # ✅ Handle YouTube cookies (store as base64 in secrets!)
+      - name: Create cookies.txt from secret
+        if: ${{ '${{ secrets.YOUTUBE_COOKIES }}' != '' }}
+        working-directory: ./uploader-service
+        run: echo "${{ secrets.YOUTUBE_COOKIES }}" | base64 -d > cookies.txt
 
       - name: Run processing script
         working-directory: ./uploader-service
         run: npx tsx src/index.ts
         env:
-          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
-          # This is the PAT for modifying the workflow file
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # These are needed by the workflow service to know which repo to modify
-          GITHUB_WORKFLOW_REPO_OWNER: ${{ github.repository_owner }}
-          GITHUB_WORKFLOW_REPO_NAME: ${{ github.event.repository.name }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}'
+          GOOGLE_CLIENT_ID: '${{ secrets.GOOGLE_CLIENT_ID }}'
+          GOOGLE_CLIENT_SECRET: '${{ secrets.GOOGLE_CLIENT_SECRET }}'
+          GOOGLE_REDIRECT_URI: '${{ secrets.GOOGLE_REDIRECT_URI }}'
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: ./uploader-service/logs/*
