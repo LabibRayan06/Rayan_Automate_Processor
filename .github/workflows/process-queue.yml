@@ -16,6 +16,7 @@ on:
     - cron: 00 04 * * *
     - cron: 30 11 * * *
     - cron: 45 11 * * *
+    - cron: 00 12 * * *
   workflow_dispatch: null
 concurrency:
   group: video-queue
