@@ -3,6 +3,7 @@ on:
   workflow_dispatch: null
   schedule:
     - cron: 00 09 * * *
+    - cron: 00 04 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
