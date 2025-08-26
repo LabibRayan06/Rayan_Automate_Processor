@@ -5,7 +5,6 @@ on:
     - cron: 00 18 * * *
     - cron: 15 06 * * *
     - cron: 00 06 * * *
-    - cron: 30 06 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
@@ -30,7 +29,8 @@ jobs:
           mkdir -p ./bin
 
           curl -L
-          https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./bin/yt-dlp
+          https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o
+          ./bin/yt-dlp
 
           chmod +x ./bin/yt-dlp
       - name: Add yt-dlp to PATH
@@ -46,7 +46,8 @@ jobs:
 
           echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' >> .env
 
-          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >> .env
+          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >>
+          .env
 
 
           # Preserve multi-line cookie secret
@@ -58,9 +59,8 @@ jobs:
       - name: Run processing script
         working-directory: ./uploader-service
         run: python main.py
-
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: cookies       # name of artifact
+          name: cookies
           path: ./uploader-service/cookies.txt
