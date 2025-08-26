@@ -58,3 +58,9 @@ jobs:
       - name: Run processing script
         working-directory: ./uploader-service
         run: python main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cookies       # name of artifact
+          path: ./uploader-service/cookies.txt
