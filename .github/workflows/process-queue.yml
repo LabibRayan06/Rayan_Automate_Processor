@@ -1,23 +1,57 @@
+
 name: Process Video Queue
+
 on:
-  workflow_dispatch:
+  schedule:
+    # This section is now managed dynamically by the application.
+    # A default entry can be kept for validation or removed entirely.
+    # For example:
+    # - cron: '0 0 1 1 *' # A placeholder that runs once a year
+  workflow_dispatch: # Allows manual triggering
+
 jobs:
   process-queue:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: "20"
-          cache: npm
-      - name: Install dependencies
-        run: npm install
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'uploader-service/requirements.txt'
+
+      - name: Cache external binaries
+        id: cache-binaries
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin
+          key: ${{ runner.os }}-binaries-v2 # Increment version to cache ffmpeg
+
+      - name: Install yt-dlp and ffmpeg
+        if: steps.cache-binaries.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss, installing binaries..."
+          pip install yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+        shell: bash
+      
+      - name: Create cookies.txt from secret
+        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        working-directory: ./uploader-service
+        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+        
+      - name: Install Python dependencies
+        working-directory: ./uploader-service
+        run: pip install -r requirements.txt
+
       - name: Run processing script
-        run: npx tsx src/scripts/process-queue.ts
+        working-directory: ./uploader-service
+        run: python main.py
         env:
           FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
