@@ -5,6 +5,7 @@ on:
     - cron: 00 18 * * *
     - cron: 15 06 * * *
     - cron: 00 06 * * *
+    - cron: 30 06 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
