@@ -1,4 +1,3 @@
-
 name: Process Video Queue
 
 on:
@@ -24,7 +23,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/bin
-          key: ${{ runner.os }}-binaries-v2 # Increment version to cache ffmpeg
+          key: ${{ runner.os }}-binaries-v2 # Increment version to refresh cache
 
       - name: Install yt-dlp and ffmpeg
         if: steps.cache-binaries.outputs.cache-hit != 'true'
@@ -32,13 +31,12 @@ jobs:
           echo "Cache miss, installing binaries..."
           pip install yt-dlp
           sudo apt-get update && sudo apt-get install -y ffmpeg
-        shell: bash
-      
+
       - name: Create cookies.txt from secret
         if: ${{ secrets.YOUTUBE_COOKIES && secrets.YOUTUBE_COOKIES != '' }}
         working-directory: ./uploader-service
         run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-        
+
       - name: Install Python dependencies
         working-directory: ./uploader-service
         run: pip install -r requirements.txt
