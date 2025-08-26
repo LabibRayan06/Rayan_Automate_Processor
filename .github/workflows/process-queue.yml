@@ -18,34 +18,56 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'uploader-service/requirements.txt'
 
-      - name: Cache external binaries
-        id: cache-binaries
+      # -----------------------------
+      # Cache yt-dlp binary (optional)
+      # -----------------------------
+      - name: Cache yt-dlp binary
+        id: cache-yt-dlp
         uses: actions/cache@v4
         with:
-          path: /usr/local/bin
-          key: ${{ runner.os }}-binaries-v2 # Increment version to refresh cache
+          path: ./bin
+          key: ${{ runner.os }}-yt-dlp-v2025.01.15 # update version when yt-dlp updates
 
-      - name: Install yt-dlp and ffmpeg
-        if: steps.cache-binaries.outputs.cache-hit != 'true'
+      - name: Install yt-dlp if not cached
+        if: steps.cache-yt-dlp.outputs.cache-hit != 'true'
         run: |
-          echo "Cache miss, installing binaries..."
-          pip install yt-dlp
+          mkdir -p ./bin
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./bin/yt-dlp
+          chmod +x ./bin/yt-dlp
+
+      - name: Add yt-dlp to PATH
+        run: echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
+
+      # -----------------------------
+      # ffmpeg (apt-get is already cached by GitHub infra)
+      # -----------------------------
+      - name: Install ffmpeg
+        run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # -----------------------------
+      # Environment + Cookies
+      # -----------------------------
       - name: Create .env and cookies.txt file from secrets
         working-directory: ./uploader-service
         run: |
-          echo 'FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > .env
-          echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' > .env
-          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' > .env
-          echo '${{ secrets.YOUTUBE_COOKIES }}' > cookies.txt
-
+          echo "FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" > .env
+          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
+          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
           
+          # Preserve multi-line cookie secret
+          printf "%s" "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
+      # -----------------------------
+      # Python dependencies
+      # -----------------------------
       - name: Install Python dependencies
         working-directory: ./uploader-service
         run: pip install -r requirements.txt
 
+      # -----------------------------
+      # Run main script
+      # -----------------------------
       - name: Run processing script
         working-directory: ./uploader-service
         run: python main.py
-
