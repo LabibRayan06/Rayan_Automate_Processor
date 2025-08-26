@@ -1,73 +1,59 @@
 name: Process Video Queue
-
 on:
-  workflow_dispatch: # Allows manual triggering
-
+  workflow_dispatch: null
+  schedule:
+    - cron: 00 18 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'uploader-service/requirements.txt'
-
-      # -----------------------------
-      # Cache yt-dlp binary (optional)
-      # -----------------------------
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: uploader-service/requirements.txt
       - name: Cache yt-dlp binary
         id: cache-yt-dlp
         uses: actions/cache@v4
         with:
           path: ./bin
-          key: ${{ runner.os }}-yt-dlp-v2025.01.15 # update version when yt-dlp updates
-
+          key: ${{ runner.os }}-yt-dlp-v2025.01.15
       - name: Install yt-dlp if not cached
         if: steps.cache-yt-dlp.outputs.cache-hit != 'true'
-        run: |
+        run: >
           mkdir -p ./bin
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./bin/yt-dlp
-          chmod +x ./bin/yt-dlp
 
+          curl -L
+          https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o
+          ./bin/yt-dlp
+
+          chmod +x ./bin/yt-dlp
       - name: Add yt-dlp to PATH
         run: echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
-
-      # -----------------------------
-      # ffmpeg (apt-get is already cached by GitHub infra)
-      # -----------------------------
       - name: Install ffmpeg
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      # -----------------------------
-      # Environment + Cookies
-      # -----------------------------
       - name: Create .env and cookies.txt file from secrets
         working-directory: ./uploader-service
-        run: |
-          echo 'FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > .env
-          echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' >> .env
-          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >> .env
-          
-          # Preserve multi-line cookie secret
-          printf "%s" "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+        run: >
+          echo 'FIREBASE_SERVICE_ACCOUNT_KEY=${{
+          secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > .env
 
-      # -----------------------------
-      # Python dependencies
-      # -----------------------------
+          echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' >> .env
+
+          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >>
+          .env
+
+
+          # Preserve multi-line cookie secret
+
+          printf "%s" "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
       - name: Install Python dependencies
         working-directory: ./uploader-service
         run: pip install -r requirements.txt
-
-      # -----------------------------
-      # Run main script
-      # -----------------------------
       - name: Run processing script
         working-directory: ./uploader-service
         run: python main.py
