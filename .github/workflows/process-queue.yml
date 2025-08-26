@@ -32,13 +32,15 @@ jobs:
           pip install yt-dlp
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Create cookies.txt from secret
-        env:
-          YT_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
-        if: env.YT_COOKIES != ''
+      - name: Create .env and cookies.txt file from secrets
         working-directory: ./uploader-service
-        run: echo "$YT_COOKIES" > cookies.txt
+        run: |
+          echo 'FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > .env
+          echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' > .env
+          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' > .env
+          echo '${{ secrets.YOUTUBE_COOKIES }}' > cookies.txt
 
+          
       - name: Install Python dependencies
         working-directory: ./uploader-service
         run: pip install -r requirements.txt
@@ -46,7 +48,4 @@ jobs:
       - name: Run processing script
         working-directory: ./uploader-service
         run: python main.py
-        env:
-          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+
