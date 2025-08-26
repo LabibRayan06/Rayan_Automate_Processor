@@ -2,7 +2,7 @@ name: Process Video Queue
 on:
   workflow_dispatch: null
   schedule:
-    []
+    - cron: 00 23 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
