@@ -35,7 +35,7 @@ jobs:
         shell: bash
       
       - name: Create cookies.txt from secret
-        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        if: '${{ secrets.YOUTUBE_COOKIES != '' }}'
         working-directory: ./uploader-service
         run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
         
