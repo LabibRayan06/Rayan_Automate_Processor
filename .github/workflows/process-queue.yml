@@ -33,7 +33,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Create cookies.txt from secret
-        if: ${{ secrets.YOUTUBE_COOKIES && secrets.YOUTUBE_COOKIES != '' }}
+        if: ${{ secrets.YOUTUBE_COOKIES }}
         working-directory: ./uploader-service
         run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
 
