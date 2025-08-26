@@ -87,7 +87,7 @@ def upload_to_youtube(db, uid, video_path, title, description):
         'snippet': {
             'title': title,
             'description': description,
-            'categoryId': '28'  # Science & Technology
+            'categoryId': '24'
         },
         'status': {
             'privacyStatus': 'public'
