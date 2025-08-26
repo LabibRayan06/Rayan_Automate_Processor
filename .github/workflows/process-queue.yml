@@ -1,8 +1,6 @@
 name: Process Video Queue
 on:
-  schedule:
   workflow_dispatch:
-    {}
 jobs:
   process-queue:
     runs-on: ubuntu-latest
