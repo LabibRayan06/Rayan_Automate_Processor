@@ -1,6 +1,5 @@
 name: Process Video Queue
 on:
-  push: null
   workflow_dispatch: null
   schedule:
     - cron: 00 23 * * *
