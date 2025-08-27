@@ -129,7 +129,7 @@ def process_queue():
     """
     db = firestore.client()
     now_utc = datetime.now(timezone.utc)
-    ten_minutes_ago = now_utc - timedelta(minutes=10)
+    ten_minutes_ago = now_utc - timedelta(minutes=14)
 
     start_time_id = ten_minutes_ago.strftime('%H_%M')
     end_time_id = now_utc.strftime('%H_%M')
