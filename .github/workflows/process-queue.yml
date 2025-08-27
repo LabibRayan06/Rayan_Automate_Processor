@@ -4,7 +4,6 @@ on:
   workflow_dispatch: null
   schedule:
     - cron: 00 23 * * *
-    - cron: 00 10 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
@@ -28,7 +27,8 @@ jobs:
         run: >
           mkdir -p ./bin
 
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o
+          curl -L
+          https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o
           ./bin/yt-dlp
 
           chmod +x ./bin/yt-dlp
@@ -45,7 +45,8 @@ jobs:
 
           echo 'GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}' >> .env
 
-          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >> .env
+          echo 'GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}' >>
+          .env
 
 
           # Preserve multi-line cookie secret
