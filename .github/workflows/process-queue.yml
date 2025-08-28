@@ -3,7 +3,6 @@ on:
   workflow_dispatch: null
   schedule:
     - cron: 00 23 * * *
-    - cron: 30 03 * * *
     - cron: 00 06 * * *
 jobs:
   process-queue:
