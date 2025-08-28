@@ -118,6 +118,11 @@ def upload_to_youtube(db, uid, video_path, title, description):
     logging.info(f"Upload complete. New Video ID: {response.get('id')}")
     return response.get('id')
 
+def round_to_quarter(dt):
+    # Round minutes to nearest 15
+    minute = (dt.minute // 15) * 15
+    return dt.replace(minute=minute, second=0, microsecond=0)
+    
 # --- Main Logic ---
 def process_queue():
     """
@@ -128,11 +133,12 @@ def process_queue():
     status in Firestore.
     """
     db = firestore.client()
+
     now_utc = datetime.now(timezone.utc)
     ten_minutes_ago = now_utc - timedelta(minutes=14)
-
-    start_time_id = ten_minutes_ago.strftime('%H_%M')
-    end_time_id = now_utc.strftime('%H_%M')
+    
+    start_time_id = round_to_quarter(ten_minutes_ago).strftime('%H_%M')
+    end_time_id = round_to_quarter(now_utc).strftime('%H_%M')
 
     logging.info(f"Starting queue processing for UTC time window: {start_time_id} to {end_time_id}")
 
