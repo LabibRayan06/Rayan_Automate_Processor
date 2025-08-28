@@ -119,67 +119,51 @@ def upload_to_youtube(db, uid, video_path, title, description):
     return response.get('id')
 
 def round_to_quarter(dt):
+    """Round datetime to the nearest 15-minute mark."""
     # Round minutes to nearest 15
-    minute = (dt.minute // 15) * 15
+    minute = 15 * round(dt.minute / 15)
+    if minute == 60:
+        dt += timedelta(hours=1)
+        minute = 0
     return dt.replace(minute=minute, second=0, microsecond=0)
-    
+
 # --- Main Logic ---
 def process_queue():
     """
-    Processes scheduled video uploads by querying Firestore for active
-    time slots, identifying scheduled users, and then processing the
+    Processes scheduled video uploads by querying Firestore for the active
+    time slot, identifying scheduled users, and then processing the
     earliest queued video (one per user) for those users.
-    It downloads the videos, uploads them to YouTube, and updates their
-    status in Firestore.
     """
     db = firestore.client()
 
     now_utc = datetime.now(timezone.utc)
-    ten_minutes_ago = now_utc - timedelta(minutes=14)
-    
-    start_time_id = round_to_quarter(ten_minutes_ago).strftime('%H_%M')
-    end_time_id = round_to_quarter(now_utc).strftime('%H_%M')
-
-    logging.info(f"Starting queue processing for UTC time window: {start_time_id} to {end_time_id}")
+    current_quarter_id = round_to_quarter(now_utc).strftime('%H_%M')
+    logging.info(f"Starting queue processing for current UTC quarter: {current_quarter_id}")
 
     schedules_ref = db.collection('schedules')
+    schedule_doc = schedules_ref.document(current_quarter_id).get()
 
-    # Corrected query using document references
-    start_doc_ref = schedules_ref.document(start_time_id)
-    end_doc_ref = schedules_ref.document(end_time_id)
-
-    schedules_query = (
-        schedules_ref
-        .where(field_path.FieldPath.document_id(), '>=', start_doc_ref)
-        .where(field_path.FieldPath.document_id(), '<=', end_doc_ref)
-    )
-    schedules_snapshot = schedules_query.get()
-
-    if not schedules_snapshot:
-        logging.info("No schedules found for the current time window.")
+    if not schedule_doc.exists:
+        logging.info(f"No schedules found for the current quarter: {current_quarter_id}")
         return
 
-    user_ids = set()
-    for doc in schedules_snapshot:
-        users = doc.to_dict().get('users', [])
-        user_ids.update(users)
-
-    if not user_ids:
-        logging.info("No users scheduled in active time slots.")
+    users = schedule_doc.to_dict().get('users', [])
+    if not users:
+        logging.info("No users scheduled in this time slot.")
         return
 
-    unique_user_ids = list(user_ids)
-    if len(unique_user_ids) > 30:
-        logging.warning("More than 30 users scheduled. Processing only the first 30. Implement batching if needed.")
-        unique_user_ids = unique_user_ids[:30]
+    # Limit to 30 users max to prevent overload
+    if len(users) > 30:
+        logging.warning("More than 30 users scheduled. Processing only the first 30.")
+        users = users[:30]
 
-    logging.info(f"Found {len(unique_user_ids)} unique users scheduled in this window.")
+    logging.info(f"Found {len(users)} users scheduled in this quarter.")
 
     videos_ref = db.collection('video_submissions')
     videos_to_process = []
 
     # Fetch only one queued video per user (earliest submitted)
-    for uid in unique_user_ids:
+    for uid in users:
         user_video_query = (
             videos_ref
             .where('status', '==', 'queued')
@@ -196,13 +180,6 @@ def process_queue():
 
     logging.info(f"Processing {len(videos_to_process)} videos (one per user).")
 
-
-    if not videos_to_process:
-        logging.info("No queued videos found for scheduled users.")
-        return
-
-    logging.info(f"Found {len(videos_to_process)} videos to process.")
-
     with tempfile.TemporaryDirectory() as temp_dir:
         for doc in videos_to_process:
             video_data = doc.to_dict()
@@ -210,18 +187,18 @@ def process_queue():
             uid = video_data.get('uid')
             title = video_data.get('title')
             original_url = video_data.get('originalUrl')
-            
+
             logging.info(f"Processing video: {video_id} for user {uid} - '{title}'")
             video_doc_ref = db.collection('video_submissions').document(video_id)
 
             try:
                 video_doc_ref.update({'status': 'processing', 'updatedAt': firestore.SERVER_TIMESTAMP})
-                
+
                 video_path = os.path.join(temp_dir, f"{video_id}.mp4")
                 cookies_path = './cookies.txt'
-                
+
                 download_video(original_url, video_path, cookies_path)
-                
+
                 new_video_id = upload_to_youtube(
                     db,
                     uid,
@@ -229,7 +206,7 @@ def process_queue():
                     title,
                     video_data.get('description', '')
                 )
-                
+
                 update_data = {
                     'status': 'published',
                     'publishedAt': firestore.SERVER_TIMESTAMP,
@@ -249,6 +226,7 @@ def process_queue():
             finally:
                 if os.path.exists(video_path):
                     os.remove(video_path)
+
 if __name__ == "__main__":
     initialize_firebase()
     process_queue()
