@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: 00 23 * * *
     - cron: 00 13 * * *
-    - cron: 45 03 * * *
 jobs:
   process-queue:
     runs-on: ubuntu-latest
