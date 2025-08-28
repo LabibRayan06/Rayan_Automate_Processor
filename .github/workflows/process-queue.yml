@@ -2,7 +2,6 @@ name: Process Video Queue
 on:
   workflow_dispatch: null
   schedule:
-    - cron: 30 03 * * *
     - cron: 30 12 * * *
 jobs:
   process-queue:
