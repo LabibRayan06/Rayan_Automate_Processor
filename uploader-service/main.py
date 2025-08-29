@@ -118,13 +118,11 @@ def upload_to_youtube(db, uid, video_path, title, description):
     logging.info(f"Upload complete. New Video ID: {response.get('id')}")
     return response.get('id')
 
+
 def round_to_quarter(dt):
-    """Round datetime to the nearest 15-minute mark."""
-    # Round minutes to nearest 15
-    minute = 15 * round(dt.minute / 15)
-    if minute == 60:
-        dt += timedelta(hours=1)
-        minute = 0
+    """Round datetime down to the previous 15-minute mark."""
+    # Floor minutes to previous 15
+    minute = (dt.minute // 15) * 15
     return dt.replace(minute=minute, second=0, microsecond=0)
 
 # --- Main Logic ---
