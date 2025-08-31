@@ -78,7 +78,42 @@ def download_video(video_url, output_path, cookies_file):
         ydl.download([video_url])
     logging.info(f"Video downloaded successfully to {output_path}")
 
+def sanitize_title(title: str) -> str:
+    """
+    Ensure the video title is non-empty, properly formatted,
+    and free from characters that can break the YouTube API request.
+    """
+    if not title or not title.strip():
+        return "Untitled Video"
+    
+    # Remove newlines and carriage returns
+    title = title.replace('\n', ' ').replace('\r', ' ')
+    
+    # Optionally, remove leading/trailing whitespace
+    title = title.strip()
+    
+    # Limit title to 100 characters (YouTube max)
+    if len(title) > 100:
+        title = title[:97] + "..."
+    
+    return title
+
+def sanitize_description(description: str) -> str:
+    """
+    Ensure the description is a valid string (non-None) and UTF-8 safe.
+    """
+    if not description:
+        return ""
+    description = description.replace('\r\n', '\n').replace('\r', '\n')
+    return description.strip()
+
 def upload_to_youtube(db, uid, video_path, title, description):
+    # Sanitize title and description
+    title = sanitize_title(title)
+    description = sanitize_description(description)
+    
+    logging.info(f"Uploading video with title: '{title}' (length {len(title)})")
+
     creds = get_refreshed_credentials(db, uid)
     youtube = build('youtube', 'v3', credentials=creds)
 
@@ -86,7 +121,7 @@ def upload_to_youtube(db, uid, video_path, title, description):
         'snippet': {
             'title': title,
             'description': description,
-            'categoryId': '24'
+            'categoryId': '24'  # Entertainment category
         },
         'status': {
             'privacyStatus': 'public'
@@ -110,7 +145,6 @@ def upload_to_youtube(db, uid, video_path, title, description):
         except HttpError as e:
             if e.resp.status in [500, 502, 503, 504]:
                 logging.warning(f"A retriable HTTP error {e.resp.status} occurred: {e}")
-                # Implement retry logic if needed
             else:
                 raise
     
