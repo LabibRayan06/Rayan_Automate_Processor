@@ -16,9 +16,8 @@ import tempfile
 import requests
 from PIL import Image
 import ffmpeg
-
-#--------------------- testing only
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -119,10 +118,9 @@ def upload_to_youtube(db, uid, video_path, title, description):
     return response.get('id')
 
 
-def round_to_quarter(dt):
-    """Round datetime down to the previous 15-minute mark."""
-    # Floor minutes to previous 15
-    minute = (dt.minute // 15) * 15
+def round_to_half_hour(dt):
+    """Round datetime down to the previous 00 or 30 minute mark."""
+    minute = 0 if dt.minute < 30 else 30
     return dt.replace(minute=minute, second=0, microsecond=0)
 
 # --- Main Logic ---
@@ -135,7 +133,7 @@ def process_queue():
     db = firestore.client()
 
     now_utc = datetime.now(timezone.utc)
-    current_quarter_id = round_to_quarter(now_utc).strftime('%H_%M')
+    current_quarter_id = round_to_half_hour(now_utc).strftime('%H_%M')
     logging.info(f"Starting queue processing for current UTC quarter: {current_quarter_id}")
 
     schedules_ref = db.collection('schedules')
