@@ -110,6 +110,25 @@ def sanitize_description(description: str) -> str:
     description = description.replace('\r\n', '\n').replace('\r', '\n')
     return description.strip()
 
+def crop_video(input_path, output_path=None):
+    """
+    Crop 10px from all sides of a video using FFmpeg.
+    
+    :param input_path: Path to input video
+    :param output_path: Path to save cropped video. If None, overwrites input video.
+    """
+    if output_path is None:
+        base, ext = os.path.splitext(input_path)
+        output_path = f"{base}_cropped{ext}"
+
+    # FFmpeg crop command
+    cmd = f'ffmpeg -i "{input_path}" -filter:v "crop=iw-20:ih-20:10:10" -c:a copy "{output_path}" -y'
+    
+    # Run the command
+    subprocess.run(shlex.split(cmd), check=True)
+    
+    return output_path
+
 def upload_to_youtube(db, uid, video_path, title, description):
     # Sanitize title and description
     title = sanitize_title(title)
@@ -232,10 +251,12 @@ def process_queue():
 
                 download_video(original_url, video_path, cookies_path)
 
+                output_path = crop_video_ffmpeg(video_path,"crop_"+video_path)
+
                 new_video_id = upload_to_youtube(
                     db,
                     uid,
-                    video_path,
+                    output_path,
                     title,
                     video_data.get('description', '')
                 )
