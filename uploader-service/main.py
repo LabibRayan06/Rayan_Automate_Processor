@@ -251,7 +251,7 @@ def process_queue():
 
                 download_video(original_url, video_path, cookies_path)
 
-                output_path = crop_video_ffmpeg(video_path,"crop_"+video_path)
+                output_path = crop_video(video_path,"crop_"+video_path)
 
                 new_video_id = upload_to_youtube(
                     db,
