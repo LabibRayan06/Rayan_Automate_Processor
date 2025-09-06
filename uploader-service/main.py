@@ -70,9 +70,12 @@ def download_video(video_url, output_path, cookies_file):
         'quiet': True,
         'socket_timeout': 60
     }
-    if os.path.exists(cookies_file):
-        ydl_opts['cookiefile'] = cookies_file
-        logging.info(f"Using cookies file: {cookies_file}")
+
+    
+    if "youtube.com" in video_url or "youtu.be" in video_url:
+        if os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
+            logging.info(f"Using cookies file: {cookies_file}")
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
