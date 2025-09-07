@@ -16,6 +16,8 @@ import tempfile
 import requests
 from PIL import Image
 import ffmpeg
+import subprocess
+import shlex
 from dotenv import load_dotenv
 
 load_dotenv()
